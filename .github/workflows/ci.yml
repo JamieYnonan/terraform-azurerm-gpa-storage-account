@@ -1,0 +1,131 @@
+name: CI
+
+on:
+  pull_request:
+    types: ['opened', 'reopened', 'synchronize']
+
+permissions:
+  contents: read
+
+jobs:
+
+  pr-title-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Conventional Commits
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  linter-check:
+    permissions:
+      contents: read
+      security-events: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+
+      - name: Init TFLint
+        run: tflint --init
+
+      - name: Run TFLint
+        run:  tflint -f compact --recursive
+        continue-on-error: true
+
+      - name: Run TFLint
+        run:  tflint -f sarif --recursive > results.sarif
+
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v3
+        if: success() || failure()
+        with:
+          sarif_file: results.sarif
+
+  docs-check:
+    runs-on: ubuntu-latest
+    needs: terraform-version
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Documentation
+        uses: terraform-docs/gh-actions@v1
+        with:
+          fail-on-diff: true
+          config-file: .terraform-docs.yml
+          output-format: markdown
+
+  terraform-version:
+    runs-on: ubuntu-latest
+    outputs:
+      terraform-version: ${{ steps.terraform-version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Terraform version
+        id: terraform-version
+        run: |
+          version=$(grep -oP 'required_version\s*=\s*"\K[^"]+' terraform.tf)
+          echo "version=${version}" >> $GITHUB_OUTPUT
+
+  terraform-check:
+    runs-on: ubuntu-latest
+    needs: terraform-version
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ needs.terraform-version.outputs.terraform-version }}
+
+      - name: Terraform Fmt
+        id: fmt
+        run: terraform fmt -recursive -check
+
+      - name: Terraform Init
+        id: init
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+
+      - name: Terraform Test
+        id: test
+        run: terraform test -no-color
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ vars.ARM_TENANT_ID }}
+
+  sca-check:
+    permissions:
+      contents: read
+      security-events: write
+    runs-on: ubuntu-latest
+    needs: terraform-version
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Checkov GitHub Action
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          output_format: cli,sarif
+          output_file_path: console,results.sarif
+
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v3
+        if: success() || failure()
+        with:
+          sarif_file: results.sarif
