@@ -43,7 +43,8 @@ jobs:
       - name: Create and Push Tags
         id: create_push_tags
         run: |
-          git config user.name "GitHub Actions"
+          git config user.name "GitHub Actions - Release"
+          git config user.name "release@noreply.github.com"
           git tag -a "${{ steps.tags.outputs.semver }}" -m "Release ${{ steps.tags.outputs.semver }}"
           git push origin "${{ steps.tags.outputs.semver }}"
           git tag -af "${{ steps.tags.outputs.major }}" -m "Release ${{ steps.tags.outputs.semver }}"
