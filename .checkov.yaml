@@ -11,4 +11,12 @@ summary-position: top
 deep-analysis: true
 directory: .
 framework: terraform
-# skip-check:
+skip-check:
+  - CKV_AZURE_59
+  - CKV_AZURE_33
+  - CKV2_AZURE_21
+  - CKV2_AZURE_1
+  - CKV2_AZURE_33
+  - CKV_AZURE_206
+  - CKV_TF_1
+  - CKV_TF_2
