@@ -61,3 +61,5 @@ private_ssh_key
 README-generated.md
 
 .azure/
+.terraform.lock.hcl
+.terraform/
